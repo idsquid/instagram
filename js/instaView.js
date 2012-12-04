@@ -23,20 +23,39 @@ var frame = 0;
 	SETUP
 ---------------------------------- */
 
-// Grid
-	var gridCols = Math.ceil(resolution[0] * 2 / squareSize);
-	var gridRows = Math.ceil(resolution[1] * 2 / squareSize);
+// Grid 
+	var gridCols = Math.ceil(resolution[0] / squareSize);
+	var gridRows = Math.ceil(resolution[1] / squareSize);
+	var gridWidth = gridCols * squareSize;
+	var gridHeight = gridRows * squareSize;
 	var gridTotal = gridRows * gridCols;
-	var grid = {
-		width : gridCols * squareSize,
-		height : gridRows * squareSize,
-		index : {
+	function grid(num) {
+		this.number = num,
+		this.width = gridCols * squareSize,
+		this.height = gridRows * squareSize,
+		this.y = 0,
+		this.x = 0,
+		this.obj = {},
+		this.index = {
 			row : 0,
 			col : 0,
 			count : 0
 		}
+		return this;
 	};
-	$('#grid-images').append('<canvas id="gridMaster" width=' + grid.width + ' height='+ grid.height + ' style="display:none;">');
+	var gridMaster = {
+		active : 0,
+		visible : [0],
+		grids : []
+	}
+	for (x = 0; x<2; x++){
+		for (y = 0; y<2; y++){
+			var newGrid = new grid(x+y);
+			newGrid.obj = $('<canvas class="gridMaster" width=' + newGrid.width + ' height='+ newGrid.height + ' style="display:none;">');
+			$('#grid-images').append(newGrid.obj);
+			gridMaster.grids.push(newGrid);
+		}
+	}
 	$('#grid-images').append('<canvas id="gridView" width=' + resolution[0] + ' height='+ resolution[1] + '>');
 
 // Shuffle
@@ -58,25 +77,27 @@ var frame = 0;
 	INITIALIZE
 --------------------------------- */
 	
-theGrid('initialize');
+loadGrid('initialize');
 
 
 /* ---------------------------------
 	FUNCTIONS
 --------------------------------- */
 
-function theGrid(whenDone) {
+function loadGrid(whenDone) {
 //  Load Images, paint them, and advance grid object counter
-	$('#grid-images .images').find('img').not('.painted').each(function() {
+	$('#grid-images .images').find('img').not('.painted').each(function() { 
+//		Get Grid Master
+		var grid = gridMaster.grids[gridMaster.visible[0]];
 //		Get Placements
-		var ctx = document.getElementById('gridMaster').getContext('2d');
+		var ctx = grid.obj[0].getContext('2d');
 		var x = grid.index.col;
 		var y = grid.index.row; //console.log(x + ', ' + y);
 	
 //		Draw Image
 		var thumbnail = $(this)[0];
 		ctx.drawImage(thumbnail,x*squareSize, y*squareSize, squareSize, squareSize);
-		grid.index.count++;		
+		grid.index.count++;	
 	  
 // 		Advance counter 
 		  grid.index.col++;
@@ -87,29 +108,37 @@ function theGrid(whenDone) {
 		  		grid.index.row = 0
 		  	}
 		  }
+		  if(grid.index.count >= gridTotal) { 
+		//	Switch active master grid
+		  	gridMaster.visible[0] = gridMaster.visible[0]+1 > 3 ? 0 : gridMaster.visible[0]+1;
+		  }
 	}); // .each()
 
 //	Handle First Load
-	if (whenDone == 'initialize') {
-		// Make Sure the grid is filled
-		if (grid.index.count < gridTotal && grid.index.count > 0) {
+	if (whenDone == 'initialize') { 
+	//  Make Sure the grid is filled
+		if (gridMaster.grids[3].index.count < gridTotal) {
 			$('#grid-images .images').removeClass('painted');
-			theGrid('initialize');
+			loadGrid('initialize');
 		}
 		else {
 			state = 'grid';
 			crank();
 		};
 	}
-} // theGrid
+} // loadGrid
 
 function crank() {
 // Run the order of events :  Postitioning, Featured Image Check, Shuffle
 //	1. Advance Positioning of moveable elements
 	var dt = new Date() - lastRender;
-	position(dt);
+	rectangle(currentPos[0], currentPos[1], dt);
+	currentPos[0] = currentPos[0] - dx;
+	currentPos[1] = currentPos[1] - dy;
 	lastRender = new Date();
-//  2. Featured Image call
+//	2. Move Grid
+	moveGrid();
+//  3. Featured Image call
 	var cue = $('#featured-images .images').find('img').length;
 	if (cue > 0 && state != 'featured') {
 		featured();
@@ -133,15 +162,77 @@ function crank() {
 	//	requestAnimationFrame(crank);
 }
 
-function position(dt) { //console.log('Pos frame ' + frame);
-//	Get position from Plugin
-	var newPos = rectangle(currentPos[0], currentPos[1], dt);
-//  Draw to our visible grid Canvas
-	var viewCtx = document.getElementById('gridView').getContext('2d');
-	viewCtx.drawImage($('#gridMaster')[0], newPos[0], newPos[1]);	
-//	Advance Counter
-	currentPos[0] = newPos[0];
-	currentPos[1] = newPos[1];
+function moveGrid() { 
+//	Apply dx/dy
+	var active = gridMaster.active; 
+	var cue =   active == 0 ? [1,2,3] :
+				active == 1 ? [2,3,0] :
+				active == 2 ? [3,0,1] :
+				active == 3 ? [0,1,2] : false;
+	var x = gridMaster.grids[active].x;
+	var y = gridMaster.grids[active].y; // console.log(x + ', ' + y);
+	gridMaster.grids[active].x = x - dx;
+	gridMaster.grids[active].y = y - dy;
+//	Our Conditions
+//	1. No New Active
+	if (x <= 0 && y == 0 && Math.abs(x) < gridWidth) { 
+		drawGrid({
+			pos : 'right',
+			grids : [active, cue[0]]
+		});
+	}
+	else if (y < 0 && x == 0 && Math.abs(y) < gridHeight) {
+		drawGrid({
+			pos : 'below',
+			grids : [active, cue[0]]
+		});
+	}
+	else if (x < 0 && y < 0 && Math.abs(x) < gridWidth && Math.abs(y) < gridHeight) {
+		drawGrid({
+			pos : 'both',
+			grids : [active, cue[0], cue[1], cue[2]]
+		});
+	}
+//  New Active
+	else if (Math.abs(x) > gridWidth && y ==0 ) {  
+		gridMaster.active = cue[0];
+		gridMaster.grids[cue[0]].x = x-gridWidth;
+		gridMaster.grids[cue[0]].y = 0;
+		moveGrid();
+	}
+	else if (Math.abs(y) > gridHeight && x == 0 ) {  
+		gridMaster.active = cue[0];
+		gridMaster.grids[cue[0]].x = 0;
+		gridMaster.grids[cue[0]].y = y-gridHeight;
+		moveGrid();
+	}
+	else if (Math.abs(x)>gridWidth && Math.abs(y)>gridHeight) { console.log('nob')
+		gridMaster.active = cue[0];
+		gridMaster.grids[cue[0]].x = 0;
+		gridMaster.grids[cue[0]].y = 0;
+		moveGrid();
+	}
+	else {alert('you stink: ' + x + ' ,' + y)};
+}
+
+function drawGrid(args) { //console.log(args.pos)
+	var ctx = document.getElementById('gridView').getContext('2d');
+	var x = gridMaster.grids[args.grids[0]].x
+	var y = gridMaster.grids[args.grids[0]].y
+//	Draw the canvases
+	//ctx.drawImage(gridMaster.grids[args.grids[0]].obj[0], x, y);
+	ctx.fillRect(x,y,1400,900);
+	if (args.pos == 'right'){
+		ctx.drawImage(gridMaster.grids[args.grids[1]].obj[0], x+gridWidth, y);
+	}
+	if (args.pos == 'below'){
+		ctx.drawImage(gridMaster.grids[args.grids[1]].obj[0], x, y+gridHeight);
+	}
+	if (args.pos == 'both'){
+		ctx.drawImage(gridMaster.grids[args.grids[1]].obj[0], x+gridWidth, y);
+		ctx.drawImage(gridMaster.grids[args.grids[2]].obj[0], x, y+gridHeight);
+		ctx.drawImage(gridMaster.grids[args.grids[3]].obj[0], x+gridWidth, y+gridHeight);
+	}
 }
 
 function featured() {
@@ -300,7 +391,6 @@ function handPlacement(size) {
 			
 	return [x,y, Math.random()*resolution[0], Math.random()*resolution[1]];
 };
-
 
 
 
