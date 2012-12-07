@@ -14,8 +14,8 @@ var squareSize = 150;
 
 // Helpers
 var currentPos = [0,0];
-var dx = 1;
-var dy = 1;
+var dx = 0;
+var dy = 0;
 var lastRender = new Date();
 var frame = 0;
 
@@ -76,7 +76,20 @@ var frame = 0;
 /* ---------------------------------
 	INITIALIZE
 --------------------------------- */
-	
+
+// Animation Frame
+	window.requestAnimationFrame = (function(){
+      return  window.requestAnimationFrame       || 
+              window.webkitRequestAnimationFrame || 
+              window.mozRequestAnimationFrame    || 
+              window.oRequestAnimationFrame      || 
+              window.msRequestAnimationFrame     || 
+              function( callback ){
+                window.setTimeout(callback, 1000 / 60);
+              };
+    })();
+
+// GO!	
 loadGrid('initialize');
 
 
@@ -132,14 +145,18 @@ function crank() {
 // Run the order of events :  Postitioning, Featured Image Check, Shuffle
 //	1. Advance Positioning of moveable elements
 	var dt = new Date() - lastRender;
-	rectangle(currentPos[0], currentPos[1], dt);
-	currentPos[0] = currentPos[0] - dx;
+	diag(currentPos[0], currentPos[1], dt);
+	currentPos[0] = currentPos[0] - dx; 
 	currentPos[1] = currentPos[1] - dy;
+		/* currentPos[0] = currentPos[0] < -squareSize ? currentPos[0] + squareSize :
+						currentPos[0] > 0 ? currentPos[0] - squareSize : currentPos[0];
+		currentPos[1] = currentPos[1] < -squareSize ? currentPos[1] + squareSize :
+						currentPos[1] > 0 ? currentPos[1] - squareSize : currentPos[1]; */
 	lastRender = new Date();
 //	2. Move Grid
-	moveGrid();
+	moveGrid(true);
 //  3. Featured Image call
-	var cue = $('#featured-images .images').find('img').length;
+	var cue = $('#featured-images > .images').find('img').length;
 	if (cue > 0 && state != 'featured') {
 		featured();
 	}
@@ -149,79 +166,93 @@ function crank() {
 			shuffle.x2.counter = 0;
 			newShuffle(shuffle.x2, 2);
 		}
-		if (shuffle.x4.counter >= 1) {return false;
+		if (shuffle.x4.counter >= 1.3) { //return false;
 			shuffle.x4.counter = 0;
 			newShuffle(shuffle.x4, 4);
 		}
-		updateShuffle(shuffle.x2);
-		//updateShuffle(shuffle.x4);
 	}
+	updateShuffle(shuffle.x2);
+	updateShuffle(shuffle.x4);
+	
 //  Aaaand Repeat!
-	frame++;
+	/* frame++;
+	if (frame == 60) {
+		var image = $('<img src="img/image.jpg" />');
+		$('#featured-images > .images').append(image);
+	} */
 	setTimeout('crank()', 1000/fps);
-	//	requestAnimationFrame(crank);
+	//requestAnimationFrame(crank);
 }
 
-function moveGrid() { 
+function moveGrid(firstCall) { //console.log('moveGrid: ' + frame);
 //	Apply dx/dy
 	var active = gridMaster.active; 
 	var cue =   active == 0 ? [1,2,3] :
 				active == 1 ? [2,3,0] :
 				active == 2 ? [3,0,1] :
 				active == 3 ? [0,1,2] : false;
+	if (firstCall) {
+		gridMaster.grids[active].x = gridMaster.grids[active].x - dx;
+		gridMaster.grids[active].y = gridMaster.grids[active].y - dy;
+	}
 	var x = gridMaster.grids[active].x;
 	var y = gridMaster.grids[active].y; // console.log(x + ', ' + y);
-	gridMaster.grids[active].x = x - dx;
-	gridMaster.grids[active].y = y - dy;
+
 //	Our Conditions
-//	1. No New Active
-	if (x <= 0 && y == 0 && Math.abs(x) < gridWidth) { 
-		drawGrid({
-			pos : 'right',
-			grids : [active, cue[0]]
-		});
-	}
-	else if (y < 0 && x == 0 && Math.abs(y) < gridHeight) {
-		drawGrid({
-			pos : 'below',
-			grids : [active, cue[0]]
-		});
-	}
-	else if (x < 0 && y < 0 && Math.abs(x) < gridWidth && Math.abs(y) < gridHeight) {
+	// Same active	
+	if (x<=0 && y<=0 && x >= -gridWidth && y >= -gridHeight) {
 		drawGrid({
 			pos : 'both',
 			grids : [active, cue[0], cue[1], cue[2]]
 		});
 	}
-//  New Active
-	else if (Math.abs(x) > gridWidth && y ==0 ) {  
+	// New Actives
+	else if (x>0 && y<=0) { 
 		gridMaster.active = cue[0];
 		gridMaster.grids[cue[0]].x = x-gridWidth;
-		gridMaster.grids[cue[0]].y = 0;
-		moveGrid();
+		gridMaster.grids[cue[0]].y = y;
+		moveGrid(false);	
 	}
-	else if (Math.abs(y) > gridHeight && x == 0 ) {  
+	else if (x<=0 && y>0) { 
+		gridMaster.active = cue[1];
+		gridMaster.grids[cue[1]].x = x;
+		gridMaster.grids[cue[1]].y = y-gridHeight;
+		moveGrid(false);
+	} 
+	else if (x>0 && y>0) { 
+		gridMaster.active = cue[2];
+		gridMaster.grids[cue[2]].x = x-gridHeight;
+		gridMaster.grids[cue[2]].y = y-gridHeight;
+		moveGrid(false);	
+	}
+	else if (x<-gridWidth && y>-gridHeight) { 
 		gridMaster.active = cue[0];
-		gridMaster.grids[cue[0]].x = 0;
-		gridMaster.grids[cue[0]].y = y-gridHeight;
-		moveGrid();
+		gridMaster.grids[cue[0]].x = x+gridWidth;
+		gridMaster.grids[cue[0]].y = y;
+		moveGrid(false);	
 	}
-	else if (Math.abs(x)>gridWidth && Math.abs(y)>gridHeight) { console.log('nob')
-		gridMaster.active = cue[0];
-		gridMaster.grids[cue[0]].x = 0;
-		gridMaster.grids[cue[0]].y = 0;
-		moveGrid();
+	else if (x>-gridWidth && y<-gridHeight) { 
+		gridMaster.active = cue[1];
+		gridMaster.grids[cue[1]].x = x;
+		gridMaster.grids[cue[1]].y = y+gridHeight;
+		moveGrid(false);	
 	}
-	else {alert('you stink: ' + x + ' ,' + y)};
+	else if (x<-gridWidth && y<-gridHeight) { 
+		gridMaster.active = cue[2];
+		gridMaster.grids[cue[2]].x = x+gridWidth;
+		gridMaster.grids[cue[2]].y = y+gridHeight;
+		moveGrid(false);	
+	}
+	else {alert('you still stink! ' + x + ', ' + y)};
 }
 
-function drawGrid(args) { //console.log(args.pos)
+function drawGrid(args) { //console.log('Draw Grid: ' +frame)
 	var ctx = document.getElementById('gridView').getContext('2d');
 	var x = gridMaster.grids[args.grids[0]].x
 	var y = gridMaster.grids[args.grids[0]].y
 //	Draw the canvases
-	//ctx.drawImage(gridMaster.grids[args.grids[0]].obj[0], x, y);
-	ctx.fillRect(x,y,1400,900);
+	ctx.drawImage(gridMaster.grids[args.grids[0]].obj[0], x, y);
+	//ctx.fillRect(x,y,1400,900);
 	if (args.pos == 'right'){
 		ctx.drawImage(gridMaster.grids[args.grids[1]].obj[0], x+gridWidth, y);
 	}
@@ -236,16 +267,32 @@ function drawGrid(args) { //console.log(args.pos)
 }
 
 function featured() {
-	alert('featured');
+//	Kill shuffle canvases	
+	$('#shuffle-images > .paintings').find('canvas').each(function() {
+		$(this).slideToggle(function() {
+			$(this).remove();
+		})
+	});
 }
 
 /*
 	SHUFFLE FUNCTIONS
 */
-function newShuffle(handler, size) { //console.log('New frame ' +frame)
+function newShuffle(handler, size) { 
+//	Get the image to be painted
+	if ($(handler.container).find('> .images > img').length) {
+		var image = $(handler.container).find('> .images > img').first();
+	//	this image will now be painted, so move it to the archive
+		image.prependTo(handler.container + '>.images > .archive');
+	}
+	else if ($(handler.container).find('> .images > .archive > img').length) {
+		var randImage = Math.floor(Math.random() * $(handler.container).find('> .images > .archive > img').length);
+		var image = $(handler.container).find('> .images > .archive > img:eq('+randImage+')');
+	}
+	else {return false;}
 //	Create the Animated Canvas.  PLUGABLE
-	var can = new simpleCan(squareSize * size);
-	can.appendTo(handler.container + ' .paintings');
+	var can = new simpleCan(squareSize * size, image[0]);
+	can.appendTo('#shuffle-images > .paintings');
 //	Add it our Positioning Cue
 	var place = handPlacement(size);
 	handler.canvases.push({
@@ -259,7 +306,7 @@ function newShuffle(handler, size) { //console.log('New frame ' +frame)
 //	Update Counters
 	handler.counter = handler.counter + shuffleRate/1000;
 }
-function updateShuffle(handler, size) { //console.log('Update frame ' + frame)
+function updateShuffle(handler, size) { //console.log('Update Shuffle: ' + frame)
 	var kill = 0;
 	for (i=0; i<handler.canvases.length; i++){
 		var canInfo = handler.canvases[i];
@@ -269,24 +316,28 @@ function updateShuffle(handler, size) { //console.log('Update frame ' + frame)
 			kill++;
 		}
 	//	Move Live Canvases
-		else {
+		else if (canInfo.age > 0) {
 		//	Calculate where to put the canvas
-			//canInfo.targetX = Math.abs(canInfo.x-canInfo.targetX) > 1 ? canInfo.targetX - dx : dx;
-			//canInfo.targetY = Math.abs(canInfo.y-canInfo.targetY) > 1 ? canInfo.targetY - dy : dy;
-			canInfo.targetX = canInfo.targetX - dx;
-			canInfo.targetY = canInfo.targetY - dy;
-			canInfo.x = Math.round(canInfo.x + ((canInfo.targetX - canInfo.x) / shuffleRate));
-			canInfo.y = Math.round(canInfo.y + ((canInfo.targetY - canInfo.y) / shuffleRate));
+			var distX = canInfo.targetX - canInfo.x;
+			var distY = canInfo.targetY - canInfo.y;
+			if (Math.abs(distX) > 0 || Math.abs(distY) > 0) {
+				canInfo.x = canInfo.x + distX / 5;
+				canInfo.y = canInfo.y + distY / 5;
+			}
+				canInfo.x = canInfo.x - dx;
+				canInfo.y = canInfo.y - dy;
+				canInfo.targetX = canInfo.targetX - dx;
+				canInfo.targetY = canInfo.targetY - dy;
 		//  Now put it there - either by css or CANVAS (preferreable)
 			animCanvas.css({
 				left : canInfo.x + 'px',
 				top : canInfo.y + 'px'
-			}); 
+			});  
 			//var viewCtx = document.getElementById('gridView').getContext('2d');
 			//viewCtx.drawImage(animCanvas[0], canInfo.x, canInfo.y);
+		}
 		//	Update Counters
 			canInfo.age++;
-		};
 	} // for 
 	for (j=0; j< kill; j++) {
 		handler.canvases[j].obj.remove();
@@ -302,27 +353,32 @@ function updateShuffle(handler, size) { //console.log('Update frame ' + frame)
 		2. Canvas Shuffle Animations
 ----------------------------------------------------------------------------------------- */
 
-function rectangle(x, y, dt) { 
+function rectangle(x, y, dt) { //return false;
 //  Go Around
-	if (x > -resolution[0] && y >= 0 ) {
+	if (x >= -resolution[0] && y >= 0 ) {
 		movex = 1; movey = 0;
 	}
-	else if (x <= -resolution[0] && y > -resolution[1] ) { 
-		movey = 1; movex = 0;
+	else if (x < -resolution[0] && y >= -resolution[1] ) { 
+		movex = 0; movey = 1; 
 	}
-	else if (y <= -resolution[1] && x <= 0) {
+	else if (y < -resolution[1] && x <= 0) {
 		movex = -1; movey = 0;
 	}
 	else {
 		movex = 0; movey = -1;
 	};
 	
-	dx = (movex * dt * speed/100);
-	dy = (movey * dt * speed/100);
+	dx = Math.round(movex * dt * speed/100);
+	dy = Math.round(movey * dt * speed/100); 
 		
 	x = x - dx;
 	y = y - dy;
 	return [x, y];
+}
+
+function diag(x,y,dt) {
+	dx = Math.round(0 * dt * speed/100);
+	dy = Math.round(-1 * dt * speed/100); 
 }
 
 function edgeBounce(x, y, dt) { // not done
@@ -343,13 +399,14 @@ function edgeBounce(x, y, dt) { // not done
 }
 
 // ANIMATED
-function simpleCan(size) {
+function simpleCan(size, img) {
 	var can = $('<canvas>').attr({
 		width: size, height: size,
 		style : 'left:-2000px; top:-2000px'
 	})
 	var ctx = can[0].getContext('2d');
-	ctx.fillRect(0,0,300,300);
+	ctx.drawImage(img, 0, 0, size, size);
+	//ctx.fillRect(0,0,300,300);
 	return can;
 }
 
@@ -358,38 +415,30 @@ function simpleCan(size) {
 ----------------------------------------------------------------------------------------- */
 
 // Adjusted 
-// Animation Frame
-	window.requestAnimationFrame = (function(){
-      return  window.requestAnimationFrame       || 
-              window.webkitRequestAnimationFrame || 
-              window.mozRequestAnimationFrame    || 
-              window.oRequestAnimationFrame      || 
-              window.msRequestAnimationFrame     || 
-              function( callback ){
-                window.setTimeout(callback, 1000 / 60);
-              };
-    })();
     
 // Get Random Starting point
 function handPlacement(size) {
 	var randDir = Math.round(Math.random()*4);
 	
-	var firstSquareX = (-currentPos[0] % squareSize) ; 
-	var firstSquareY = (-currentPos[1] % squareSize); 
-	//console.log(firstSquareX + ', ' + firstSquareY);
+	var firstSquareX = currentPos[0] % squareSize ; 
+	var firstSquareY = currentPos[1] % squareSize; 
+	//alert(firstSquareX + ', ' + firstSquareY);
 	
+	var targetSquareX = Math.round(Math.random()*(gridCols-3)) * squareSize + firstSquareX;
+	var targetSquareY = Math.round(Math.random()*(gridRows-3)) * squareSize + firstSquareY - squareSize;
 	
-	var x = randDir % 4 == 0 ? firstSquareX + resolution[0] : // from right
-			randDir % 3 == 0 ? firstSquareX - squareSize : // from left
-			randDir % 2 == 0 ? firstSquareX :
-			randDir % 1 == 0 ? firstSquareX  : false;
+	var x = randDir % 4 == 0 ? targetSquareX + gridWidth : // from right
+			randDir % 3 == 0 ? targetSquareX - gridWidth : // from left
+			randDir % 2 == 0 ? targetSquareX :
+			randDir % 1 == 0 ? targetSquareX  : false;
 	
-	var y = randDir % 4 == 0 ? firstSquareY : 
-			randDir % 3 == 0 ? firstSquareY :
-			randDir % 2 == 0 ? firstSquareY + resolution[1] : // from top
-			randDir % 1 == 0 ? firstSquareY - squareSize : false; // from bottom
-			
-	return [x,y, Math.random()*resolution[0], Math.random()*resolution[1]];
+	var y = randDir % 4 == 0 ? targetSquareY : 
+			randDir % 3 == 0 ? targetSquareY :
+			randDir % 2 == 0 ? targetSquareY + gridHeight : // from top
+			randDir % 1 == 0 ? targetSquareY - gridHeight : false; // from bottom
+
+	//console.log('Hand Placement. X: ' + targetSquareX + ', Y: ' + targetSquareY);
+	return [x,y, targetSquareX, targetSquareY];
 };
 
 

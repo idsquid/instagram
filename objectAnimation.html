@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Instagram Viewer</title>
+		<link rel="stylesheet" href="css/style.css">
+		<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
+	</head>
+	<body>
+	
+	<script type="text/javascript">
+		
+		function ball() {
+			this.go = function () {
+				var img = new Image(50,50);
+				img.src = 'img/image.jpg';
+				document.body.appendChild(img);
+				setTimeout('joe.bounce()', 1000/10);
+			}
+			this.bounce = function () {
+				console.log('blob');
+				setTimeout('joe.bounce()', 1000/10);
+			}
+		}
+		
+		var joe = new ball();
+		//joe.go();
+		
+		</script>
+	
+	</body>
+</html>

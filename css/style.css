@@ -14,7 +14,13 @@ body {
 #shuffle-images, #grid-images {
 	position: absolute;
 }
-
+#grid-images {
+	z-index: 0;
+}
+#shuffle-images canvas {
+	position: absolute;
+	z-index: 1;
+}
 .images {
 	display: none;
 }
